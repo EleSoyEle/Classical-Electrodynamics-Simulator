@@ -163,28 +163,33 @@ def animate(i):
 
     En = gradPhin-(A[1]-A[0])/dt
 
+    Xp = prepare_tensor_to_graph(X,s)
+    Yp = prepare_tensor_to_graph(Y,s)
+    Zp = prepare_tensor_to_graph(Z,s)
+    Enp = [prepare_tensor_to_graph(En[i],s) for i in range(3)]
+    Bnp = [prepare_tensor_to_graph([Bx,By,Bz][i],s) for i in range(3)]
 
-    Bn_mag = np.sqrt(Bx[::s, ::s, ::s]**2 + By[::s, ::s, ::s]**2 + Bz[::s, ::s, ::s]**2)
+
+    Bn_mag = np.sqrt(Bnp[0]**2 + Bnp[1]**2 + Bnp[2]**2)
     log_mag = np.log10(Bn_mag+1e-9)
     log_mag_min = log_mag.min()
     log_mag_max = log_mag.max()
     Bn_mag_norm = (log_mag - log_mag_min) / (log_mag_max - log_mag_min)
 
-
-    Bcolores_rgba = torch.zeros((Bx[::s,::s,::s].numel(), 4)).cpu().numpy()
+    Bcolores_rgba = np.zeros((Bnp[0].size,4))
     Bcolores_rgba[:, 0] = 0.65  #Rojo
     Bcolores_rgba[:, 1] = 0.04 #Verde
     Bcolores_rgba[:, 2] = 0.21  #Azul
     Bcolores_rgba[:, 3] = Bn_mag_norm.flatten()**(0.2)
     
-    En_mag = np.sqrt(En[0][::s, ::s, ::s]**2+En[1][::s, ::s, ::s]**2+En[2][::s, ::s, ::s]**2)
+    En_mag = np.sqrt(Enp[0]**2+Enp[1]**2+Enp[2]**2)
     log_mag = np.log10(En_mag+1e-9)
     log_mag_min = log_mag.min()
     log_mag_max = log_mag.max()
     En_elec_norm = (log_mag - log_mag_min) / (log_mag_max - log_mag_min)
 
 
-    Ecolores_rgba = torch.zeros((En[0][::s,::s,::s].numel(), 4)).cpu().numpy()
+    Ecolores_rgba = np.zeros((Enp[0].size,4))
     Ecolores_rgba[:, 0] = 0.0  #Rojo
     Ecolores_rgba[:, 1] = 0.4  #Verde
     Ecolores_rgba[:, 2] = 1.0  #Azul
@@ -199,15 +204,9 @@ def animate(i):
     
     ax.set_title("Campo electrico")
     
-    Xp = prepare_tensor_to_graph(X,s)
-    Yp = prepare_tensor_to_graph(Y,s)
-    Zp = prepare_tensor_to_graph(Z,s)
-    Enp = [prepare_tensor_to_graph(En[i],s) for i in range(3)]
-    Bnp = [prepare_tensor_to_graph([Bx,By,Bz][i],s) for i in range(3)]
-
     ax.quiver(
         Xp,Yp,Zp,
-        Enp[0],Enp[1],Enp[1],
+        Enp[0],Enp[1],Enp[2],
         normalize=True,length=1,arrow_length_ratio=0.3,color=Ecolores_rgba)
     bx.set_title("Campo magnetico")
     bx.quiver(
