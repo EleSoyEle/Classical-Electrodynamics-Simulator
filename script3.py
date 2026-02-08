@@ -66,12 +66,12 @@ def MakeDelta(x,y,z,r0):
     return torch.exp(-((x-r0[0])**2+(y-r0[1])**2+(z-r0[2])**2))/(2*np.pi*std**2)**(3/2)
 
 def FiniteDiffStep(t):
-    nphi = torch.zeros_like(phi[-1])
-    delta_t = torch.zeros_like(X)
-    current_term = torch.zeros_like(A[-1])
+    nphi = torch.zeros_like(phi[-1]).to(device)
+    delta_t = torch.zeros_like(X).to(device)
+    current_term = torch.zeros_like(A[-1]).to(device)
     for i in range(len(r[0])):
         delta_i = q[i]*MakeDelta(X,Y,Z,r[-1][i])
-        vi_vec = torch.from_numpy(v[i][:,np.newaxis, np.newaxis, np.newaxis])
+        vi_vec = torch.from_numpy(v[i][:,np.newaxis, np.newaxis, np.newaxis]).to(device)
         Ji = vi_vec*delta_i
 
         delta_t += delta_i
