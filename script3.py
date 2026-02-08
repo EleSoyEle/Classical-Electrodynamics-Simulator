@@ -114,20 +114,15 @@ steps = 100
 pre_calc = False
 
 
-def Rot(A):
-    Axy = np.gradient(A[0],axis=0)
-    Axz = np.gradient(A[0],axis=2)
+def Rot_PyTorch(A_tensor, dx, dy, dz):
+    def d_dz(f): return (torch.roll(f, -1, dims=0) - torch.roll(f, 1, dims=0)) / (2 * dz)
+    def d_dy(f): return (torch.roll(f, -1, dims=1) - torch.roll(f, 1, dims=1)) / (2 * dy)
+    def d_dx(f): return (torch.roll(f, -1, dims=2) - torch.roll(f, 1, dims=2)) / (2 * dx)
+    Bx = d_dy(A_tensor[2]) - d_dz(A_tensor[1])
+    By = d_dz(A_tensor[0]) - d_dx(A_tensor[2])
+    Bz = d_dx(A_tensor[1]) - d_dy(A_tensor[0])
 
-    Ayx = np.gradient(A[1],axis=1)
-    Ayz = np.gradient(A[1],axis=2)
-
-    Azx = np.gradient(A[2],axis=1)
-    Azy = np.gradient(A[2],axis=0)
-
-    Bx = torch.from_numpy(Ayz-Azy)
-    By = torch.from_numpy(Axz-Azx)
-    Bz = torch.from_numpy(Ayx-Axy)
-    return Bx,By,Bz
+    return Bx, By, Bz
 
 def torch_gradient_3d(f, dx, dy, dz):
 
@@ -159,7 +154,7 @@ def animate(i):
     FiniteDiffStep(0)
     
     gradPhin = torch_gradient_3d(phi[1],dx,dy,dz)
-    Bx,By,Bz = Rot(A[1])
+    Bx,By,Bz = Rot_PyTorch(A[1],dx,dy,dz)
 
     En = gradPhin-(A[1]-A[0])/dt
 
