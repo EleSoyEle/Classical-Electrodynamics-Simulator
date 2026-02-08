@@ -20,7 +20,7 @@ phi = [space*0,space*0]
 r = [5]
 
 dt = 0.01
-v = 0.1*c
+v = 0.0*c
 std = 0.05
 def FiniteDiffStep(t):
     nphi = np.zeros_like(phi[-1])

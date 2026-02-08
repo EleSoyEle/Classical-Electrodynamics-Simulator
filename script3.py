@@ -5,20 +5,29 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.colors import Normalize
 from matplotlib import cm
-q = -1
+import torch
+device = torch.device("cpu")
+
+#Parametros fisicos
 e0 = 1
 mu0 = 1
 c = 1/np.sqrt(e0*mu0)
 
-res = 100
-min_ = -30
-max_ = 30
+#Parametros del simulador
+res = 50
+min_ = -10
+max_ = 10
 
 x0 = np.linspace(min_,max_,res)
 x1 = np.linspace(min_,max_,res)
 x2 = np.linspace(min_,max_,res)
 
 X,Y,Z = np.meshgrid(x0,x1,x2)
+
+X = torch.from_numpy(X).to(device)
+Y = torch.from_numpy(Y).to(device)
+Z = torch.from_numpy(Z).to(device)
+
 xl,yl = np.meshgrid(x0,x1)
 
 dx = (max_-min_)/res
@@ -26,25 +35,26 @@ dy = (max_-min_)/res
 dz = (max_-min_)/res
 
 phi = [X*0,X*0]
-
 A = [
-    np.array([X*0,X*0,X*0]),
-    np.array([X*0,X*0,X*0])
+    torch.zeros((3, res, res, res), device=device),
+    torch.zeros((3, res, res, res), device=device)
 ]
 
 r = [
-    [[0,0,0]],
-    [[0,0,0]],
+    [[0,0,0],[0.1,0.3,0.9]],
+    [[0,0,0],[0.1,0.3,0.9]],
     ]
 
 dt = 0.05
+
+#Carga y velocidad de las particulas
 q = [1,1,-1]
-v = np.array([[0.5,0,0],[0,0,0],[0,0,0.1]])*c
+v = np.array([[0.5,0,0.1],[0,0,0],[0,0,0.1]])*c
 std = 0.01
 
 
-thickness = 5
-sigma = np.zeros_like(X)
+thickness = 10
+sigma = torch.zeros_like(X)
 for i in range(thickness):
     val = ((thickness - i) / thickness) * 0.5
     sigma[:, i, :] = sigma[:, -i-1, :] = val
@@ -53,27 +63,27 @@ for i in range(thickness):
 
 
 def MakeDelta(x,y,z,r0):
-    return np.exp(-((x-r0[0])**2+(y-r0[1])**2+(z-r0[2])**2))/(2*np.pi*std**2)**(3/2)
+    return torch.exp(-((x-r0[0])**2+(y-r0[1])**2+(z-r0[2])**2))/(2*np.pi*std**2)**(3/2)
 
 def FiniteDiffStep(t):
-    nphi = np.zeros_like(phi[-1])
-    delta_t = np.zeros_like(X)
-    current_term = np.zeros_like(A[-1])
+    nphi = torch.zeros_like(phi[-1])
+    delta_t = torch.zeros_like(X)
+    current_term = torch.zeros_like(A[-1])
     for i in range(len(r[0])):
         delta_i = q[i]*MakeDelta(X,Y,Z,r[-1][i])
-        vi_vec = v[i][:,np.newaxis, np.newaxis, np.newaxis]
+        vi_vec = torch.from_numpy(v[i][:,np.newaxis, np.newaxis, np.newaxis])
         Ji = vi_vec*delta_i
 
         delta_t += delta_i
         current_term += Ji
 
-    d2phid2x = (np.roll(phi[-1],-1,axis=1)-2*phi[-1]+np.roll(phi[-1],1,axis=1))/dx**2
-    d2phid2y = (np.roll(phi[-1],-1,axis=0)-2*phi[-1]+np.roll(phi[-1],1,axis=0))/dy**2
-    d2phid2z = (np.roll(phi[-1],-1,axis=2)-2*phi[-1]+np.roll(phi[-1],1,axis=2))/dz**2
+    d2phid2x = (torch.roll(phi[-1],-1,dims=1)-2*phi[-1]+torch.roll(phi[-1],1,dims=1))/dx**2
+    d2phid2y = (torch.roll(phi[-1],-1,dims=0)-2*phi[-1]+torch.roll(phi[-1],1,dims=0))/dy**2
+    d2phid2z = (torch.roll(phi[-1],-1,dims=2)-2*phi[-1]+torch.roll(phi[-1],1,dims=2))/dz**2
 
-    d2Ad2x = (np.roll(A[-1], -1, axis=1) - 2*A[-1] + np.roll(A[-1], 1, axis=1))/dx**2
-    d2Ad2y = (np.roll(A[-1], -1, axis=0) - 2*A[-1] + np.roll(A[-1], 1, axis=0))/dy**2
-    d2Ad2z = (np.roll(A[-1], -1, axis=2) - 2*A[-1] + np.roll(A[-1], 1, axis=2))/dz**2
+    d2Ad2x = (torch.roll(A[-1], -1, dims=1) - 2*A[-1] + torch.roll(A[-1], 1, dims=1))/dx**2
+    d2Ad2y = (torch.roll(A[-1], -1, dims=0) - 2*A[-1] + torch.roll(A[-1], 1, dims=0))/dy**2
+    d2Ad2z = (torch.roll(A[-1], -1, dims=2) - 2*A[-1] + torch.roll(A[-1], 1, dims=2))/dz**2
     
     parts_term = delta_t/e0
     current_term = mu0*current_term
@@ -100,7 +110,7 @@ def FiniteDiffStep(t):
     phi[1] = nphi
     A[0] = A[1]
     A[1] = nA
-steps = 5000
+steps = 100
 pre_calc = False
 
 
@@ -114,11 +124,17 @@ def Rot(A):
     Azx = np.gradient(A[2],axis=1)
     Azy = np.gradient(A[2],axis=0)
 
-    Bx = Ayz-Azy
-    By = Axz-Azx
-    Bz = Ayx-Axy
+    Bx = torch.from_numpy(Ayz-Azy)
+    By = torch.from_numpy(Axz-Azx)
+    Bz = torch.from_numpy(Ayx-Axy)
     return Bx,By,Bz
 
+def torch_gradient_3d(f, dx, dy, dz):
+
+    dfdy = (torch.roll(f, -1, dims=0) - torch.roll(f, 1, dims=0)) / (2 * dy)
+    dfdx = (torch.roll(f, -1, dims=1) - torch.roll(f, 1, dims=1)) / (2 * dx)
+    dfdz = (torch.roll(f, -1, dims=2) - torch.roll(f, 1, dims=2)) / (2 * dz)
+    return torch.stack([-dfdy, -dfdx, -dfdz])
 
 
 fig = plt.figure(figsize=(10,5))
@@ -131,6 +147,10 @@ v_lim = 0
 cmap = cm.get_cmap("seismic")
 norm = Normalize(-1,1)
 
+#Vamos a cortar en gpu
+def prepare_tensor_to_graph(T,stride):
+    return T[::stride,::stride,::stride].cpu().numpy()
+
 def animate(i):
     global v_lim
     print("Paso",i)
@@ -138,8 +158,9 @@ def animate(i):
     bx.clear()
     FiniteDiffStep(0)
     
-    gradPhin = np.gradient(-phi[1],dy,dx,dz)
+    gradPhin = torch_gradient_3d(phi[1],dx,dy,dz)
     Bx,By,Bz = Rot(A[1])
+
     En = gradPhin-(A[1]-A[0])/dt
 
 
@@ -150,11 +171,11 @@ def animate(i):
     Bn_mag_norm = (log_mag - log_mag_min) / (log_mag_max - log_mag_min)
 
 
-    Bcolores_rgba = np.zeros((Bx[::s,::s,::s].size, 4))
-    Bcolores_rgba[:, 0] = 0.0  # Rojo
-    Bcolores_rgba[:, 1] = 0.4  # Verde
-    Bcolores_rgba[:, 2] = 1.0  #Azul
-    Bcolores_rgba[:, 3] = Bn_mag_norm.flatten()**0.3
+    Bcolores_rgba = torch.zeros((Bx[::s,::s,::s].numel(), 4)).cpu().numpy()
+    Bcolores_rgba[:, 0] = 0.65  #Rojo
+    Bcolores_rgba[:, 1] = 0.04 #Verde
+    Bcolores_rgba[:, 2] = 0.21  #Azul
+    Bcolores_rgba[:, 3] = Bn_mag_norm.flatten()**(0.2)
     
     En_mag = np.sqrt(En[0][::s, ::s, ::s]**2+En[1][::s, ::s, ::s]**2+En[2][::s, ::s, ::s]**2)
     log_mag = np.log10(En_mag+1e-9)
@@ -163,9 +184,9 @@ def animate(i):
     En_elec_norm = (log_mag - log_mag_min) / (log_mag_max - log_mag_min)
 
 
-    Ecolores_rgba = np.zeros((En[0][::s,::s,::s].size, 4))
-    Ecolores_rgba[:, 0] = 0.0  # Rojo
-    Ecolores_rgba[:, 1] = 0.4  # Verde
+    Ecolores_rgba = torch.zeros((En[0][::s,::s,::s].numel(), 4)).cpu().numpy()
+    Ecolores_rgba[:, 0] = 0.0  #Rojo
+    Ecolores_rgba[:, 1] = 0.4  #Verde
     Ecolores_rgba[:, 2] = 1.0  #Azul
     Ecolores_rgba[:, 3] = En_elec_norm.flatten()**0.3
     
@@ -173,20 +194,26 @@ def animate(i):
     bx.axis("off")
 
     if i%2==0:
-        ax.view_init(elev=5, azim=i//2, roll=0)
-        bx.view_init(elev=5, azim=i//2, roll=0)
+        ax.view_init(elev=10, azim=i//2, roll=0)
+        bx.view_init(elev=10, azim=i//2, roll=0)
     
     ax.set_title("Campo electrico")
     
+    Xp = prepare_tensor_to_graph(X,s)
+    Yp = prepare_tensor_to_graph(Y,s)
+    Zp = prepare_tensor_to_graph(Z,s)
+    Enp = [prepare_tensor_to_graph(En[i],s) for i in range(3)]
+    Bnp = [prepare_tensor_to_graph([Bx,By,Bz][i],s) for i in range(3)]
+
     ax.quiver(
-        X[::s,::s,::s],Y[::s,::s,::s],Z[::s,::s,::s],
-        En[0][::s,::s,::s],En[1][::s,::s,::s],En[2][::s,::s,::s],
-        normalize=True,length=4,arrow_length_ratio=0.3,color=Ecolores_rgba)
+        Xp,Yp,Zp,
+        Enp[0],Enp[1],Enp[1],
+        normalize=True,length=1,arrow_length_ratio=0.3,color=Ecolores_rgba)
     bx.set_title("Campo magnetico")
     bx.quiver(
-        X[::s,::s,::s],Y[::s,::s,::s],Z[::s,::s,::s],
-        Bx[::s,::s,::s],By[::s,::s,::s],Bz[::s,::s,::s],
-        normalize=True,length=4,color=Bcolores_rgba)
+        Xp,Yp,Zp,
+        Bnp[0],Bnp[1],Bnp[2],
+        normalize=True,length=1,color=Bcolores_rgba)
 
     for i in range(len(r[0])):
         ax.scatter(r[1][i][0],r[1][i][1],r[1][i][2])
@@ -196,5 +223,5 @@ def animate(i):
 
 
 ani = FuncAnimation(fig,animate,frames=steps)
-ani.save("ani4.mp4",fps=60,dpi=150)
+ani.save("ani4.mp4",fps=15,dpi=150)
 plt.show()
