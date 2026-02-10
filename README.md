@@ -8,9 +8,30 @@
  6. Graficación
 
  ## Pasos completados
-  - [ ] Fuentes de los campos
-  - [ ] Evolución de los campos
+  - [x] Fuentes de los campos
+  - [x ] Evolución de los campos
   - [ ] Interpolación
   - [ ] Solución de las ecuaciones en particulas
-  - [ ] Exportar a python
-  - [ ] Graficar
+  - [x] Exportar a python
+  - [x] Graficar
+
+
+## Salida del código
+![Animacion obtenida del codigo](animation.gif)
+
+
+## Instrucciones de uso
+
+### script3.py
+El codigo cuenta con las siguientes variables
+| Variable | Tipo | Descripción |
+| :--- | :---: | ---: | 
+| e0 | float | Constante de permitividad del vacio |
+| mu0 | float | Constante de permeabilidad del vacio |
+| res | int | Puntos en la malla en cada eje,el tamaño de la malla será de $\text{res}\times \text{res}\times \text{res}$
+| min_ | float | Limite inferior para los ejes xyz |
+| max_ | float | Limite superior para los ejes xyz |
+| steps | int  | Numero de pasos en la simulación |
+| s | int | Adelgazamiento de los vectores, para que en la animación no se solapen, $res/s$ debe ser entero
+| dt | float | Tamaño de cada salto de la simulación |
+

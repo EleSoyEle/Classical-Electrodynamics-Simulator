@@ -1,5 +1,8 @@
 #Particula en 3 dimensiones
 
+#NOTA: Se resuelven las ecuaciones de Maxwell para los potenciales
+# se simplifican aplicando la simetria gauge de Lorenz
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -14,9 +17,14 @@ mu0 = 1
 c = 1/np.sqrt(e0*mu0)
 
 #Parametros del simulador
-res = 50
-min_ = -10
-max_ = 10
+res = 100  #Puntos por eje en la malla
+min_ = -10 #Limite inferior
+max_ = 10  #Limite superior
+
+steps = 100 #Pasos de tiempo
+s = 10 #Stride - Para no hacer pesada la graficación
+dt = 0.05 #Salto de tiempo en cada paso
+
 
 x0 = np.linspace(min_,max_,res)
 x1 = np.linspace(min_,max_,res)
@@ -34,18 +42,18 @@ dx = (max_-min_)/res
 dy = (max_-min_)/res
 dz = (max_-min_)/res
 
-phi = [X*0,X*0]
+phi = [X*0,X*0] #Potencial escalar
 A = [
     torch.zeros((3, res, res, res), device=device),
     torch.zeros((3, res, res, res), device=device)
-]
+] #Potencial vectorial
 
 r = [
     [[0,0,0],[0.1,0.3,0.9]],
     [[0,0,0],[0.1,0.3,0.9]],
     ]
 
-dt = 0.05
+t = 0
 
 #Carga y velocidad de las particulas
 q = [1,1,-1]
@@ -53,7 +61,7 @@ v = np.array([[0.5,0,0.1],[0,0,0],[0,0,0.1]])*c
 std = 0.01
 
 
-thickness = 10
+thickness = 10 #Perdida de energia en la frontera de la caja
 sigma = torch.zeros_like(X)
 for i in range(thickness):
     val = ((thickness - i) / thickness) * 0.5
@@ -93,6 +101,8 @@ def FiniteDiffStep(t):
 
     A_amort = sigma*(A[-1]-A[-2])
     nA = 2*A[-1]-A[-2]+c**2*dt**2*(d2Ad2x+d2Ad2y+d2Ad2z+current_term)-A_amort
+    
+    #Lo que sigue de la función esta inacabado y poco optimizado
     rn = []
     for p in range(len(r[0])):
         rp = []
@@ -110,11 +120,9 @@ def FiniteDiffStep(t):
     phi[1] = nphi
     A[0] = A[1]
     A[1] = nA
-steps = 100
-pre_calc = False
 
-
-def Rot_PyTorch(A_tensor, dx, dy, dz):
+#Es para calcular el rotacional de forma optimizada en cuda
+def torch_rot(A_tensor, dx, dy, dz):
     def d_dz(f): return (torch.roll(f, -1, dims=0) - torch.roll(f, 1, dims=0)) / (2 * dz)
     def d_dy(f): return (torch.roll(f, -1, dims=1) - torch.roll(f, 1, dims=1)) / (2 * dy)
     def d_dx(f): return (torch.roll(f, -1, dims=2) - torch.roll(f, 1, dims=2)) / (2 * dx)
@@ -124,6 +132,7 @@ def Rot_PyTorch(A_tensor, dx, dy, dz):
 
     return Bx, By, Bz
 
+#Analogamente con el gradiente
 def torch_gradient_3d(f, dx, dy, dz):
 
     dfdy = (torch.roll(f, -1, dims=0) - torch.roll(f, 1, dims=0)) / (2 * dy)
@@ -135,8 +144,6 @@ def torch_gradient_3d(f, dx, dy, dz):
 fig = plt.figure(figsize=(10,5))
 ax = fig.add_subplot(1,2,1,projection="3d")
 bx = fig.add_subplot(1,2,2,projection="3d")
-s = 10
-v_lim = 0
 
 
 cmap = cm.get_cmap("seismic")
@@ -147,14 +154,15 @@ def prepare_tensor_to_graph(T,stride):
     return T[::stride,::stride,::stride].cpu().numpy()
 
 def animate(i):
-    global v_lim
+    global t
     print("Paso",i)
     ax.clear()
     bx.clear()
-    FiniteDiffStep(0)
+    FiniteDiffStep(t+dt)
+    t += dt
     
     gradPhin = torch_gradient_3d(phi[1],dx,dy,dz)
-    Bx,By,Bz = Rot_PyTorch(A[1],dx,dy,dz)
+    Bx,By,Bz = torch_rot(A[1],dx,dy,dz)
 
     En = gradPhin-(A[1]-A[0])/dt
 
@@ -163,6 +171,13 @@ def animate(i):
     Zp = prepare_tensor_to_graph(Z,s)
     Enp = [prepare_tensor_to_graph(En[i],s) for i in range(3)]
     Bnp = [prepare_tensor_to_graph([Bx,By,Bz][i],s) for i in range(3)]
+
+    #Nota sobre los exponentes en los mapas de colores:
+    '''
+    Se usan para que en la grafica de los campos vectoriales se muestren secciones que normalmente no se mostrarian
+    Así evitamos mostrar todos los vectores a la vez y los mostramos por intensidad
+    '''
+
 
 
     Bn_mag = np.sqrt(Bnp[0]**2 + Bnp[1]**2 + Bnp[2]**2)
@@ -175,8 +190,10 @@ def animate(i):
     Bcolores_rgba[:, 0] = 0.65  #Rojo
     Bcolores_rgba[:, 1] = 0.04 #Verde
     Bcolores_rgba[:, 2] = 0.21  #Azul
-    Bcolores_rgba[:, 3] = Bn_mag_norm.flatten()**(0.2)
+    Bcolores_rgba[:, 3] = Bn_mag_norm.flatten()**(0.2) 
     
+
+
     En_mag = np.sqrt(Enp[0]**2+Enp[1]**2+Enp[2]**2)
     log_mag = np.log10(En_mag+1e-9)
     log_mag_min = log_mag.min()
@@ -218,4 +235,4 @@ def animate(i):
 
 ani = FuncAnimation(fig,animate,frames=steps)
 ani.save("ani4.mp4",fps=15,dpi=150)
-plt.show()
+#plt.show()
